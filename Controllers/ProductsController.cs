@@ -16,11 +16,44 @@ public class ProductsController : ControllerBase
         _context = context;
     }
 
-    // GET /api/products
+    // GET /api/products?name=vida&minPrice=1&maxPrice=5&page=1&pageSize=10
     [HttpGet]
-    public async Task<ActionResult<List<Product>>> GetAll()
+    public async Task<ActionResult<PagedResult<Product>>> GetAll([FromQuery] ProductQueryParameters query)
     {
-        return await _context.Products.ToListAsync();
+        if (query.MinPrice > query.MaxPrice)
+            return BadRequest("MinPrice, MaxPrice'tan büyük olamaz.");
+        if (query.MinStock > query.MaxStock)
+            return BadRequest("MinStock, MaxStock'tan büyük olamaz.");
+
+        var products = _context.Products.AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(query.Name))
+            products = products.Where(p => EF.Functions.ILike(p.Name, $"%{query.Name}%"));
+        if (query.MinPrice.HasValue)
+            products = products.Where(p => p.UnitPrice >= query.MinPrice.Value);
+        if (query.MaxPrice.HasValue)
+            products = products.Where(p => p.UnitPrice <= query.MaxPrice.Value);
+        if (query.MinStock.HasValue)
+            products = products.Where(p => p.StockQuantity >= query.MinStock.Value);
+        if (query.MaxStock.HasValue)
+            products = products.Where(p => p.StockQuantity <= query.MaxStock.Value);
+
+        var totalCount = await products.CountAsync();
+
+        var items = await products
+            .OrderBy(p => p.Id)
+            .Skip((query.Page - 1) * query.PageSize)
+            .Take(query.PageSize)
+            .ToListAsync();
+
+        return new PagedResult<Product>
+        {
+            Items = items,
+            Page = query.Page,
+            PageSize = query.PageSize,
+            TotalCount = totalCount,
+            TotalPages = (int)Math.Ceiling(totalCount / (double)query.PageSize)
+        };
     }
 
     // GET /api/products/5
@@ -38,9 +71,14 @@ public class ProductsController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<Product>> Create(CreateProductDto dto)
     {
+        var name = dto.Name.Trim();
+
+        if (await _context.Products.AnyAsync(p => p.Name == name))
+            return Conflict($"'{name}' adlı ürün zaten mevcut.");
+
         var product = new Product
         {
-            Name = dto.Name.Trim(),
+            Name = name,
             StockQuantity = dto.StockQuantity,
             UnitPrice = dto.UnitPrice
         };
@@ -59,7 +97,12 @@ public class ProductsController : ControllerBase
         if (product == null)
             return NotFound($"{id} numaralı ürün bulunamadı.");
 
-        product.Name = dto.Name.Trim();
+        var name = dto.Name.Trim();
+
+        if (await _context.Products.AnyAsync(p => p.Name == name && p.Id != id))
+            return Conflict($"'{name}' adlı başka bir ürün zaten mevcut.");
+
+        product.Name = name;
         product.StockQuantity = dto.StockQuantity;
         product.UnitPrice = dto.UnitPrice;
 

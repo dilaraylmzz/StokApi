@@ -5,6 +5,7 @@ namespace StokApi.Models;
 public class CreateProductDto
 {
     [Required(ErrorMessage = "Ürün adı boş olamaz.")]
+    [StringLength(100, ErrorMessage = "Ürün adı en fazla 100 karakter olabilir.")]
     public string Name { get; set; } = string.Empty;
 
     [Range(0, int.MaxValue, ErrorMessage = "Stok miktarı 0'dan küçük olamaz.")]
