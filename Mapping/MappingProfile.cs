@@ -10,7 +10,7 @@ public class MappingProfile : Profile
         CreateMap<Product, ProductDto>();
 
         CreateMap<CreateProductDto, Product>()
-            .ForMember(d => d.Id, o => o.Ignore())
+            .ForMember(d => d.Id, o => o.Ignore())    //bunu yorum satırına al 
             .ForMember(d => d.Name, o => o.MapFrom(s => s.Name.Trim()));
 
         CreateMap<UpdateProductDto, Product>()
