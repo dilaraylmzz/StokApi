@@ -96,4 +96,95 @@ public class ProductsControllerTests
         Assert.Equal(14, paged.TotalCount);
         Assert.Equal(2, paged.TotalPages);
     }
+    
+        // ---------- Update testleri ----------
+
+    [Fact]
+    public async Task Update_ExistingProduct_ReturnsUpdatedProduct()
+    {
+        var controller = CreateController();
+        var created = await controller.Create(new CreateProductDto { Name = "Eski", StockQuantity = 1, UnitPrice = 1 });
+        var id = ((ProductDto)((CreatedAtActionResult)created.Result!).Value!).Id;
+
+        var result = await controller.Update(id, new UpdateProductDto
+        {
+            Name = "  Yeni  ", StockQuantity = 50, UnitPrice = 9.5m
+        });
+
+        var dto = result.Value!;
+        Assert.Equal(id, dto.Id);          // Id değişmedi
+        Assert.Equal("Yeni", dto.Name);    // Trim çalıştı
+        Assert.Equal(50, dto.StockQuantity);
+        Assert.Equal(9.5m, dto.UnitPrice);
+    }
+
+    [Fact]
+    public async Task Update_UnknownId_ReturnsNotFound()
+    {
+        var controller = CreateController();
+
+        var result = await controller.Update(99, new UpdateProductDto { Name = "X", StockQuantity = 1, UnitPrice = 1 });
+
+        Assert.IsType<NotFoundObjectResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task Update_NameUsedByAnotherProduct_ReturnsConflict()
+    {
+        var controller = CreateController();
+        await controller.Create(new CreateProductDto { Name = "A", StockQuantity = 1, UnitPrice = 1 });
+        var second = await controller.Create(new CreateProductDto { Name = "B", StockQuantity = 1, UnitPrice = 1 });
+        var secondId = ((ProductDto)((CreatedAtActionResult)second.Result!).Value!).Id;
+
+        var result = await controller.Update(secondId, new UpdateProductDto { Name = "A", StockQuantity = 1, UnitPrice = 1 });
+
+        Assert.IsType<ConflictObjectResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task Update_SameNameOnSameProduct_IsAllowed()
+    {
+        var controller = CreateController();
+        var created = await controller.Create(new CreateProductDto { Name = "Ayni", StockQuantity = 1, UnitPrice = 1 });
+        var id = ((ProductDto)((CreatedAtActionResult)created.Result!).Value!).Id;
+
+        var result = await controller.Update(id, new UpdateProductDto { Name = "Ayni", StockQuantity = 5, UnitPrice = 1 });
+
+        Assert.Equal(5, result.Value!.StockQuantity);
+    }
+
+    // ---------- Sınır değer testleri (min/max kontrolü) ----------
+
+    [Fact]
+    public async Task GetAll_MinPriceGreaterThanMaxPrice_ReturnsBadRequest()
+    {
+        var controller = CreateController();
+
+        var result = await controller.GetAll(new ProductQueryParameters { MinPrice = 10, MaxPrice = 5 });
+
+        Assert.IsType<BadRequestObjectResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task GetAll_MinPriceEqualsMaxPrice_IsAllowed()
+    {
+        var controller = CreateController();
+        await controller.Create(new CreateProductDto { Name = "Tam", StockQuantity = 1, UnitPrice = 5 });
+
+        var result = await controller.GetAll(new ProductQueryParameters { MinPrice = 5, MaxPrice = 5 });
+
+        Assert.Single(result.Value!.Items);   // sınır dahil
+    }
+
+    [Fact]
+    public async Task GetAll_PageBeyondLastPage_ReturnsEmptyItems()
+    {
+        var controller = CreateController();
+        await controller.Create(new CreateProductDto { Name = "Tek", StockQuantity = 1, UnitPrice = 1 });
+
+        var result = await controller.GetAll(new ProductQueryParameters { Page = 5, PageSize = 10 });
+
+        Assert.Empty(result.Value!.Items);
+        Assert.Equal(1, result.Value.TotalCount);
+    }
 }

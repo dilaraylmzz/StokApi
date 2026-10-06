@@ -90,4 +90,36 @@ public class ProductsApiTests : IClassFixture<StokApiFactory>
         var after = await _client.GetAsync($"/api/products/{created.Id}");
         Assert.Equal(HttpStatusCode.NotFound, after.StatusCode);
     }
+    [Theory]
+    [InlineData(100, HttpStatusCode.Created)]
+    [InlineData(101, HttpStatusCode.BadRequest)]
+    public async Task Post_NameLength_Boundary(int length, HttpStatusCode expected)
+    {
+        var name = new string('x', length - 36) + Guid.NewGuid().ToString();   // 36 karakter benzersiz kısım
+        if (length < 37) name = new string('x', length);
+
+        var response = await _client.PostAsJsonAsync("/api/products",
+            new { name, stockQuantity = 1, unitPrice = 1 });
+
+        Assert.Equal(expected, response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData(100, HttpStatusCode.OK)]
+    [InlineData(101, HttpStatusCode.BadRequest)]
+    public async Task Get_PageSize_Boundary(int pageSize, HttpStatusCode expected)
+    {
+        var response = await _client.GetAsync($"/api/products?pageSize={pageSize}");
+
+        Assert.Equal(expected, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Put_UnknownId_Returns404()
+    {
+        var response = await _client.PutAsJsonAsync("/api/products/999999",
+            new { name = "Yok", stockQuantity = 1, unitPrice = 1 });
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
 }
