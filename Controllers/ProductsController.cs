@@ -1,3 +1,4 @@
+using AutoMapper;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using StokApi.Data;
@@ -10,15 +11,16 @@ namespace StokApi.Controllers;
 public class ProductsController : ControllerBase
 {
     private readonly AppDbContext _context;
+    private readonly IMapper _mapper;
 
-    public ProductsController(AppDbContext context)
+    public ProductsController(AppDbContext context, IMapper mapper)
     {
         _context = context;
+        _mapper = mapper;
     }
 
-    // GET /api/products?name=vida&minPrice=1&maxPrice=5&page=1&pageSize=10
     [HttpGet]
-    public async Task<ActionResult<PagedResult<Product>>> GetAll([FromQuery] ProductQueryParameters query)
+    public async Task<ActionResult<PagedResult<ProductDto>>> GetAll([FromQuery] ProductQueryParameters query)
     {
         if (query.MinPrice > query.MaxPrice)
             return BadRequest("MinPrice, MaxPrice'tan büyük olamaz.");
@@ -46,9 +48,9 @@ public class ProductsController : ControllerBase
             .Take(query.PageSize)
             .ToListAsync();
 
-        return new PagedResult<Product>
+        return new PagedResult<ProductDto>
         {
-            Items = items,
+            Items = _mapper.Map<List<ProductDto>>(items),
             Page = query.Page,
             PageSize = query.PageSize,
             TotalCount = totalCount,
@@ -56,42 +58,35 @@ public class ProductsController : ControllerBase
         };
     }
 
-    // GET /api/products/5
     [HttpGet("{id}")]
-    public async Task<ActionResult<Product>> GetById(int id)
+    public async Task<ActionResult<ProductDto>> GetById(int id)
     {
         var product = await _context.Products.FindAsync(id);
         if (product == null)
             return NotFound($"{id} numaralı ürün bulunamadı.");
 
-        return product;
+        return _mapper.Map<ProductDto>(product);
     }
 
-    // POST /api/products
     [HttpPost]
-    public async Task<ActionResult<Product>> Create(CreateProductDto dto)
+    public async Task<ActionResult<ProductDto>> Create(CreateProductDto dto)
     {
         var name = dto.Name.Trim();
 
         if (await _context.Products.AnyAsync(p => p.Name == name))
             return Conflict($"'{name}' adlı ürün zaten mevcut.");
 
-        var product = new Product
-        {
-            Name = name,
-            StockQuantity = dto.StockQuantity,
-            UnitPrice = dto.UnitPrice
-        };
+        var product = _mapper.Map<Product>(dto);
 
         _context.Products.Add(product);
         await _context.SaveChangesAsync();
 
-        return CreatedAtAction(nameof(GetById), new { id = product.Id }, product);
+        var result = _mapper.Map<ProductDto>(product);
+        return CreatedAtAction(nameof(GetById), new { id = product.Id }, result);
     }
 
-    // PUT /api/products/5
     [HttpPut("{id}")]
-    public async Task<ActionResult<Product>> Update(int id, CreateProductDto dto)
+    public async Task<ActionResult<ProductDto>> Update(int id, UpdateProductDto dto)
     {
         var product = await _context.Products.FindAsync(id);
         if (product == null)
@@ -102,16 +97,12 @@ public class ProductsController : ControllerBase
         if (await _context.Products.AnyAsync(p => p.Name == name && p.Id != id))
             return Conflict($"'{name}' adlı başka bir ürün zaten mevcut.");
 
-        product.Name = name;
-        product.StockQuantity = dto.StockQuantity;
-        product.UnitPrice = dto.UnitPrice;
-
+        _mapper.Map(dto, product);
         await _context.SaveChangesAsync();
 
-        return Ok(product);
+        return _mapper.Map<ProductDto>(product);
     }
 
-    // DELETE /api/products/5
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(int id)
     {
