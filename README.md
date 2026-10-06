@@ -68,5 +68,5 @@ dotnet test
 - **Unit:** controller testleri
 - **Integration:** HTTP üzerinden uçtan uca akış
 - **B2B:** partner firma istemcisinin API'yi tüketmesini simüle eden testler (sözleşme, katalog senkronizasyonu, hata durumları)
-
+- **Sınır değer:** ad uzunluğu, stok, fiyat, sayfa ve sayfa boyutu sınırları
 Testler InMemory veritabanı kullanır, PostgreSQL gerekmez.
